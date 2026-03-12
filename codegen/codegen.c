@@ -11,6 +11,7 @@
 #include "codegen.h"
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include <llvm-c/Core.h>
 
 using namespace std;
@@ -250,8 +251,9 @@ void print_function_end() {
 // populates offsetMap
 void get_offset_map(LLVMValueRef func) {
 	local_mem = 4;
-	LLVMValueRef param = LLVMGetParam(func, 0);
-	if (param != NULL) {
+	LLVMValueRef param = NULL;
+	if (LLVMCountParams(func) > 0) {
+		param = LLVMGetParam(func, 0);
 		offset_map[param] = 8;
 	}
 
@@ -349,7 +351,8 @@ int codegen(LLVMModuleRef mod) {
 				case LLVMStore: {
 					LLVMValueRef A = LLVMGetOperand(instr, 0);
 					LLVMValueRef b = LLVMGetOperand(instr, 1);
-					LLVMValueRef param = LLVMGetParam(func, 0);
+					LLVMValueRef param = NULL;
+					if (LLVMCountParams(func) > 0) param = LLVMGetParam(func, 0);
 					if (A == param) break;
 					else if (LLVMIsConstant(A)) {
 						int c = offset_map[b];
@@ -433,37 +436,68 @@ int codegen(LLVMModuleRef mod) {
 				}
 				case LLVMAdd:
 				case LLVMSub:
-				case LLVMMul:
-					fprintf(outfile, "\tadd/sub/mul\n");
+				case LLVMMul: {
+					// register for instruction
+					const char* R;
+					if (reg_map.count(instr) && reg_map[instr] != SPILL) R = reg_name(reg_map[instr]);
+					else R = "%eax";
+
+					// deal with operand A
+					LLVMValueRef A = LLVMGetOperand(instr, 0);
+					LLVMValueRef B = LLVMGetOperand(instr, 1);
+					if (LLVMIsConstant(A)) fprintf(outfile, "\tmovl $%lld, %s\n", LLVMConstIntGetSExtValue(A), R);
+					else if (reg_map.count(A)) {
+						if (reg_map[A] != SPILL) {
+							if (strcmp(reg_name(reg_map[A]), R) != 0) 
+								fprintf(outfile, "\tmovl %s, %s\n", reg_name(reg_map[A]), R);
+						} else fprintf(outfile, "\tmovl %d(%%ebp), %s\n", offset_map[A], R);
+					}
+
+					// look at operation & deal with operand B
+					const char* op_str;
+					switch (op) {
+						case LLVMAdd: op_str = "addl"; break;
+						case LLVMSub: op_str = "subl"; break;
+						default: op_str = "imull";
+					}
+					if (LLVMIsConstant(B)) fprintf(outfile, "\t%s $%lld, %s\n", op_str, LLVMConstIntGetSExtValue(B), R);
+					else if (reg_map.count(B)) {
+						if (reg_map[B] != SPILL) fprintf(outfile, "\t%s %s, %s\n", op_str, reg_name(reg_map[B]), R);
+						else fprintf(outfile, "\t%s %d(%%ebp), %s\n", op_str, offset_map[B], R);
+					}
+
+					// if instr is in memory
+					if (!(reg_map.count(instr) && reg_map[instr] != SPILL)) {
+						fprintf(outfile, "\tmovl %%eax, %d(%%ebp)\n", offset_map[instr]);
+					}
 					break;
-				case LLVMICmp:
-					fprintf(outfile, "\ticmp\n");
+				}
+				case LLVMICmp: {
+					const char* R;
+					if (reg_map.count(instr) && reg_map[instr] != SPILL) R = reg_name(reg_map[instr]);
+					else R = "%eax";
+					LLVMValueRef A = LLVMGetOperand(instr, 0);
+					LLVMValueRef B = LLVMGetOperand(instr, 1);
+					if (LLVMIsConstant(A)) fprintf(outfile, "\tmovl $%lld, %s\n", LLVMConstIntGetSExtValue(A), R);
+					else if (reg_map.count(A)) {
+						if (reg_map[A] != SPILL) {
+							if (strcmp(reg_name(reg_map[A]), R) != 0)
+								fprintf(outfile, "\tmovl %s, %s\n", reg_name(reg_map[A]), R);
+						}
+						else fprintf(outfile, "\tmovl %d(%%ebp), %s\n", offset_map[A], R);
+					}
+					if (LLVMIsConstant(B)) fprintf(outfile, "\tcmpl $%lld, %s\n", LLVMConstIntGetSExtValue(B), R);
+					else if (reg_map.count(B)) {
+						if (reg_map[B] != SPILL) fprintf(outfile, "\tcmpl %s, %s\n", reg_name(reg_map[B]), R);
+						else fprintf(outfile, "\tcmpl %d(%%ebp), %s\n", offset_map[B], R);
+					}
+					break;
+				}
 				default:
 					continue;
 			}
 		}
 	}
-
-	// sanity check
-	/*for (auto entry : reg_map) {
-		LLVMDumpValue(entry.first);
-		const char* reg;
-		switch (entry.second) {
-			case EBX: reg = "ebx"; break;
-			case ECX: reg = "ecx"; break;
-			case EDX: reg = "edx"; break;
-			default: reg = "SPILL"; break;
-		}
-		printf(" -> %s\n", reg);
-	}
-	printf("\n");
-	for (auto entry : offset_map) {
-		LLVMDumpValue(entry.first);
-		printf(" -> %d\n", entry.second);
-	}
-	for (auto entry : bb_labels) {
-		printf("%s\n", entry.second.c_str());
-	}*/
 
 	printf("assembly code generated! look for it in out/out.s :) :)\n");
 	fclose(outfile);
