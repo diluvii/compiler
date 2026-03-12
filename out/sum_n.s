@@ -1,0 +1,45 @@
+.text
+.globl func
+.type func, @function
+func:
+	pushl %ebp
+	movl %esp, %ebp
+	subl $24, %esp
+	pushl %ebx
+BB0:
+	movl $0, -12(%ebp)
+	movl $0, -20(%ebp)
+	jmp BB2
+BB1:
+	movl -24(%ebp), %ebx
+	movl %ebx, %eax
+	popl %ebx
+	leave
+	ret
+BB2:
+	movl -12(%ebp), %ebx
+	movl 8(%ebp), %ecx
+	movl %ebx, %edx
+	cmpl %ecx, %edx
+	jl BB3
+	jmp BB4
+BB3:
+	pushl %ecx
+	pushl %edx
+	call read
+	popl %edx
+	popl %ecx
+	movl %eax, %ebx
+	movl %ebx, -8(%ebp)
+	movl -20(%ebp), %ebx
+	movl -8(%ebp), %ecx
+	addl %ecx, %ebx
+	movl %ebx, -20(%ebp)
+	movl -12(%ebp), %ebx
+	addl $1, %ebx
+	movl %ebx, -12(%ebp)
+	jmp BB2
+BB4:
+	movl -20(%ebp), %ebx
+	movl %ebx, -24(%ebp)
+	jmp BB1

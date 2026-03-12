@@ -7,9 +7,5 @@ make:
 	g++ -g lex.yy.c y.tab.c main.c ast.c semantic/sem.c ir_and_opts/ir.c ir_and_opts/opts.c codegen/codegen.c $(LLVM_FLAGS) -o minic
 
 run:
-	clang -m32 out/$(FILE).s tests/codegen/main.c -o out/a.out
+	clang -m32 out/$(FILE).s tests/main.c -o out/a.out
 	./out/a.out
-
-run_ir:
-	clang tests/ir/main.c out/out_opt.ll -o out/out
-	./out/out
