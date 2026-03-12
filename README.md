@@ -30,26 +30,28 @@ Note—due to syntax errors (double `;;`; `int max = 0` instead of `int max; max
 
 ## Running instructions
 ### Part 4: Codegen
-**Input:** LLVM IR
-**Output:** assembly code
+- **Input:** LLVM IR
+- **Output:** assembly code
 
 ### Part 2: IR builder & Part 3: Optimizations
-**Input:** AST tree root node
-**Output:** (optimized) LLVM IR
+- **Input:** AST tree root node
+- **Output:** (optimized) LLVM IR
 
 Local optimizations implemented: common subexpression elimination, dead code elimination, constant folding
+
 Global optimizations implemented: constant propagation
 
 ### Part 1: Syntax & semantic analysis
 For syntax analysis (implicit in `main.c` plus the `minic.l` and `minic.y` files)—
-**Input:** miniC program file path
-**Output:** AST tree root node
+- **Input:** miniC program file path
+- **Output:** AST tree root node
 
 For semantic analysis—
-**Input:** AST tree root node
-**Output:** integer representing if there is a semantic analysis error
+- **Input:** AST tree root node
+- **Output:** integer representing if there is a semantic analysis error
 
 There are two checks we implemented for semantic analysis: 1) a variable is only declared once per scope, and 2) a variable must be declared before it is used.
+
 
 
 
