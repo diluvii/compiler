@@ -5,7 +5,7 @@
 * OUTPUT: Assembly code
 *
 * author: yawen x. (@diluvii)
-* date: 03/10/2026
+* date: 03/10/2026 - 03/11/2026
 */
 
 #include "codegen.h"
@@ -14,6 +14,7 @@
 #include <llvm-c/Core.h>
 
 using namespace std;
+#include <string>
 #include <unordered_map>
 #include <set>
 #include <vector>
@@ -30,6 +31,7 @@ unordered_map<LLVMValueRef, int> reg_map;
 unordered_map<LLVMValueRef, int> inst_index;		// instructions -> index in BB
 unordered_map<LLVMValueRef, pair<int, int>> live_range;	// instruction -> (index of def, index of last use)
 set<int> available;					// set of available registers
+FILE* outfile;
 
 /* ---------------------- *
 * REGISTER ALLOCATION
@@ -83,7 +85,7 @@ void compute_liveness(LLVMBasicBlockRef bb) {
 }
 
 // helper to free registers of operands whose liveness ends at instr
-void freeEndingOperands(LLVMValueRef instr) {
+void free_ending_operands(LLVMValueRef instr) {
 	for (int i = 0; i < LLVMGetNumOperands(instr); i++) {
 		LLVMValueRef operand = LLVMGetOperand(instr, i);
 		if (live_range.count(operand) && live_range[operand].second == inst_index[instr]) {
@@ -179,7 +181,7 @@ void register_alloc(LLVMModuleRef mod) {
 					int R = *available.begin();
 					available.erase(available.begin());
 					reg_map[instr] = R;
-					freeEndingOperands(instr);
+					free_ending_operands(instr);
 					continue;
 				}
 
@@ -195,7 +197,7 @@ void register_alloc(LLVMModuleRef mod) {
 					reg_map[V] = SPILL;
 					reg_map[instr] = R;
 				}
-				freeEndingOperands(instr);
+				free_ending_operands(instr);
 			}
 		}
 	}
@@ -204,14 +206,152 @@ void register_alloc(LLVMModuleRef mod) {
 /* ---------------------- *
 * ASSEMBLY CODE GENERATION
 *
-* XXX
+* INPUT: optimized IR, information from register allocation
+* OUTPUT: assembly code (written to output file)
 * ---------------------- */
+int local_mem;
+unordered_map<LLVMValueRef, int> offset_map;		// instruction -> memory offset from %ebp
+unordered_map<LLVMBasicBlockRef, string> bb_labels;	// BB -> label
+
+// helper function to get register name from int
+const char* reg_name(int reg) {
+	switch (reg) {
+		case EBX: return "%ebx";
+		case ECX: return "%ecx";
+		case EDX: return "%edx";
+		default: return NULL;
+	}
+}
+
+// populates map of BB -> char* label
+void create_bb_labels(LLVMValueRef func) {
+	int i = 0;
+	for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(func); bb; bb = LLVMGetNextBasicBlock(bb)) {
+		bb_labels[bb] = "BB" + to_string(i);
+		i++;
+	}
+}
+
+// emits required directives for function
+void print_directives(LLVMValueRef func) {
+	string name = LLVMGetValueName(func);
+	fprintf(outfile, ".text\n");
+	fprintf(outfile, ".globl %s\n", name.c_str());
+	fprintf(outfile, ".type %s, @function\n", name.c_str());
+	fprintf(outfile, "%s:\n", name.c_str());
+}
+
+// emits assembly instructions to restore %esp, %ebp, ret
+void print_function_end() {
+	fprintf(outfile, "\tleave\n");
+	fprintf(outfile, "\tret\n");
+}
+
+// populates offsetMap
+void get_offset_map(LLVMValueRef func) {
+	local_mem = 4;
+	LLVMValueRef param = LLVMGetParam(func, 0);
+	if (param != NULL) {
+		offset_map[param] = 8;
+	}
+
+	// iterate through BBs & instrs
+	for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(func); bb; bb = LLVMGetNextBasicBlock(bb)) {
+		for (LLVMValueRef instr = LLVMGetFirstInstruction(bb); instr; instr = LLVMGetNextInstruction(instr)) {
+			LLVMOpcode op = LLVMGetInstructionOpcode(instr);
+			switch (op) {
+				case LLVMAlloca:
+					local_mem += 4;
+					offset_map[instr] = -1 * local_mem;
+					break;
+				case LLVMStore: {
+					LLVMValueRef op1 = LLVMGetOperand(instr, 0);
+					LLVMValueRef op2 = LLVMGetOperand(instr, 1);
+					if (op1 == param) {
+						int x = offset_map[op1];
+						offset_map[op2] = x;
+					} else {
+						if (!LLVMIsConstant(op1)) {
+							int x = offset_map[op2];
+							offset_map[op1] = x;
+						}
+					}
+					break;
+				}
+				case LLVMLoad: {
+					LLVMValueRef op1 = LLVMGetOperand(instr, 0);
+					int x = offset_map[op1];
+					offset_map[instr] = x;
+					break;
+				}
+				default:
+					continue;
+			}
+		}
+	}
+}
+
+// codegen main function
 int codegen(LLVMModuleRef mod) {
+	outfile = fopen("out/out.s", "w");
+
 	// first let's populate the register map, etc.
 	register_alloc(mod);
 
+	// for each function (i.e. for our only function), populate the appropriate
+	// so let's get the function
+	LLVMValueRef func = LLVMGetFirstFunction(mod);
+	while (LLVMGetFirstBasicBlock(func) == NULL) {
+		func = LLVMGetNextFunction(func);
+	}
+
+	// then populate appropriate data structures
+	create_bb_labels(func);
+	print_directives(func);
+	get_offset_map(func);
+
+	// emit prologue
+	fprintf(outfile, "\tpushl %%ebp\n");
+	fprintf(outfile, "\tmovl %%esp, %%ebp\n");
+	fprintf(outfile, "\tsubl $%d, %%esp\n", local_mem);
+	fprintf(outfile, "\tpushl %%ebx\n");
+
+	// emit instructions
+	for (LLVMBasicBlockRef bb = LLVMGetFirstBasicBlock(func); bb; bb = LLVMGetNextBasicBlock(bb)) {
+		fprintf(outfile, "%s:\n", bb_labels[bb].c_str());
+		for (LLVMValueRef instr = LLVMGetFirstInstruction(bb); instr; instr = LLVMGetNextInstruction(instr)) {
+			LLVMOpcode op = LLVMGetInstructionOpcode(instr);
+			switch (op) {
+				case LLVMRet:
+					fprintf(outfile, "\treturn\n");
+					break;
+				case LLVMLoad:
+					fprintf(outfile, "\tload\n");
+					break;
+				case LLVMStore:
+					fprintf(outfile, "\tstore\n");
+					break;
+				case LLVMCall:
+					fprintf(outfile, "\tcall\n");
+					break;
+				case LLVMBr:
+					fprintf(outfile, "\tbr\n");
+					break;
+				case LLVMAdd:
+				case LLVMSub:
+				case LLVMMul:
+					fprintf(outfile, "\tadd/sub/mul\n");
+					break;
+				case LLVMICmp:
+					fprintf(outfile, "\ticmp\n");
+				default:
+					continue;
+			}
+		}
+	}
+
 	// sanity check
-	for (auto entry : reg_map) {
+	/*for (auto entry : reg_map) {
 		LLVMDumpValue(entry.first);
 		const char* reg;
 		switch (entry.second) {
@@ -222,6 +362,15 @@ int codegen(LLVMModuleRef mod) {
 		}
 		printf(" -> %s\n", reg);
 	}
+	printf("\n");
+	for (auto entry : offset_map) {
+		LLVMDumpValue(entry.first);
+		printf(" -> %d\n", entry.second);
+	}
+	for (auto entry : bb_labels) {
+		printf("%s\n", entry.second.c_str());
+	}*/
 
+	fclose(outfile);
 	return 0;
 }
