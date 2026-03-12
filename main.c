@@ -8,7 +8,7 @@ extern astNode* root;
 extern int semanticAnalysis(astNode*);
 extern LLVMModuleRef genIR(astNode*);
 extern LLVMModuleRef optimize(LLVMModuleRef);
-extern int codegen(LLVMModuleRef);
+extern int codegen(LLVMModuleRef, char*);
 
 int main(int argc, char* argv[]) {
 	if (argc == 2) {
@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 
 			// code generation if optimized IR module is valid
 			if (mod_opt != NULL) {
-				codegen(mod_opt);
+				codegen(mod_opt, argv[1]);
 			}
 		}
 	}

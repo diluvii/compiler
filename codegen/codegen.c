@@ -294,8 +294,21 @@ void get_offset_map(LLVMValueRef func) {
 }
 
 // codegen main function
-int codegen(LLVMModuleRef mod) {
-	outfile = fopen("out/out.s", "w");
+int codegen(LLVMModuleRef mod, char* input_path) {
+	// derive output path
+	char* base = strrchr(input_path, '/');
+	base = base ? base + 1 : input_path;
+	char outname[512];
+	strncpy(outname, base, sizeof(outname));
+	char* dot = strrchr(outname, '.');
+	if (dot) *dot = '\0';
+	char outpath[512];
+	snprintf(outpath, sizeof(outpath), "out/%s.s", outname);
+	outfile = fopen(outpath, "w");
+	if (outfile == NULL) {
+		fprintf(stderr, "error: could not open output file %s\n", outpath);
+		return 1;
+	}
 
 	// first let's populate the register map, etc.
 	register_alloc(mod);
@@ -499,7 +512,7 @@ int codegen(LLVMModuleRef mod) {
 		}
 	}
 
-	printf("assembly code generated! look for it in out/out.s :) :)\n");
+	printf("assembly code generated! look for it in %s :) :)\n", outpath);
 	fclose(outfile);
 	return 0;
 }
