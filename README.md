@@ -1,40 +1,39 @@
 # miniC compiler
+A quick overview of the running instructions—
+
+- `make` to generate the `./minic` executable
+- `./minic ${FILEPATH}` to generate the assembly code for the specified `.c` file (e.g. `./minic tests/fib.c` generates `/out/fib.s`)
+- `make run FILE=${FILENAME}` to run the assembly code (e.g. `make run FILE=fib`)
 
 ## Directory structure
 ```
-├── semantic/            # part 1: semantic analysis checks
-├── ir_and_opts/         # part 2: IR builder; part 3: optimizations
-├── codegen/             # part 4: Assembly code generation
-├── tests/
-│   ├── ir/
-│   ├── semantic/
-│   └── codegen/
-├── out/
-│   ├── out
-│   ├── out.ll          # generated LLVM file from part 2
-│   └── out_opt.ll      # optimized LLVM file after part 3
 ├── main.c
 ├── Makefile
 ├── minic
-├── minic.l              # lex file
-├── minic.y              # yacc file
-└── README.md
+├── minic.l             # lex file
+├── minic.y             # yacc file
+├── README.md
+├── semantic/           # part 1: semantic analysis checks
+├── ir_and_opts/        # part 2: IR builder; part 3: optimizations
+├── codegen/            # part 4: Assembly code generation
+├── tests/
+│   ├── main.c          # & a bunch of codegen tests are right here at this level
+│   ├── semantic/
+│   └── codegen/
+└── out/
+    ├── a.out           # final executable
+    ├── out.ll          # generated LLVM file from part 2
+    └── out_opt.ll      # optimized LLVM file after part 3
 ```
 
 ## Running instructions
 ### Part 4: Codegen
 **Input:** LLVM IR
-**Output:** Assembly code
+**Output:** assembly code
 
 ### Part 2: IR builder & Part 3: Optimizations
 **Input:** AST tree root node
 **Output:** (optimized) LLVM IR
-
-IR builder code lives in `ir_and_opts/ir.c`; IR optimizer code lives in `ir_and_opts/opts.c`. 
-
-Run `make` to generate the `./minic` executable. 
-
-For testing, run `./minic [target program]` (e.g. `./minic tests/ir/p1.c`) from the terminal. This will put the resulting IR file in `tests/out/out.ll`; find also the optimized IR file in `tests/out/out_opt.ll`. Run `make run` to see the resulting (optimized) program execute.
 
 Local optimizations implemented: common subexpression elimination, dead code elimination, constant folding
 Global optimizations implemented: constant propagation
@@ -49,6 +48,7 @@ For semantic analysis—
 **Output:** integer representing if there is a semantic analysis error
 
 There are two checks we implemented for semantic analysis: 1) a variable is only declared once per scope, and 2) a variable must be declared before it is used.
+
 
 
 
