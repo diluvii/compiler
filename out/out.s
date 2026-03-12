@@ -7,31 +7,33 @@ func:
 	subl $28, %esp
 	pushl %ebx
 BB0:
-	store
-	store
-	store
-	store
+	movl $1, -8(%ebp)
+	movl $1, -12(%ebp)
+	movl $0, -16(%ebp)
 	br
 BB1:
-	return
+	movl $1, %eax
+	popl %ebx
+	leave
+	ret
 BB2:
-	load
-	load
+	movl -16(%ebp), %ebx
+	movl 8(%ebp), %ecx
 	icmp
 	br
 BB3:
-	load
+	movl -8(%ebp), %ebx
 	call
-	load
+	movl -16(%ebp), %ecx
 	add/sub/mul
-	store
-	load
-	store
+	movl %ecx, -16(%ebp)
+	movl -12(%ebp), %ecx
+	movl %ecx, -24(%ebp)
 	add/sub/mul
-	store
-	load
-	store
+	movl %ebx, -12(%ebp)
+	movl -24(%ebp), %ebx
+	movl %ebx, -8(%ebp)
 	br
 BB4:
-	store
+	movl $1, -28(%ebp)
 	br

@@ -322,21 +322,115 @@ int codegen(LLVMModuleRef mod) {
 		for (LLVMValueRef instr = LLVMGetFirstInstruction(bb); instr; instr = LLVMGetNextInstruction(instr)) {
 			LLVMOpcode op = LLVMGetInstructionOpcode(instr);
 			switch (op) {
-				case LLVMRet:
-					fprintf(outfile, "\treturn\n");
+				case LLVMRet: {
+					LLVMValueRef A = LLVMGetOperand(instr, 0);
+					if (LLVMIsConstant(A)) {
+						fprintf(outfile, "\tmovl $%lld, %%eax\n", LLVMConstIntGetSExtValue(A));
+					} else if (reg_map.count(A) && reg_map[A] != SPILL) {
+						const char* reg = reg_name(reg_map[A]);
+						fprintf(outfile, "\tmovl %s, %%eax\n", reg);
+					} else {
+						int k = offset_map[A];
+						fprintf(outfile, "\tmovl %d(%%ebp), %%eax\n", k);
+					}
+					fprintf(outfile, "\tpopl %%ebx\n");
+					print_function_end();
 					break;
-				case LLVMLoad:
-					fprintf(outfile, "\tload\n");
+				}
+				case LLVMLoad: {
+					if (reg_map.count(instr) && reg_map[instr] != SPILL) {
+						int reg = reg_map[instr];
+						LLVMValueRef b = LLVMGetOperand(instr, 0);
+						int c = offset_map[b];
+						fprintf(outfile, "\tmovl %d(%%ebp), %s\n", c, reg_name(reg));
+					}
 					break;
-				case LLVMStore:
-					fprintf(outfile, "\tstore\n");
+				}
+				case LLVMStore: {
+					LLVMValueRef A = LLVMGetOperand(instr, 0);
+					LLVMValueRef b = LLVMGetOperand(instr, 1);
+					LLVMValueRef param = LLVMGetParam(func, 0);
+					if (A == param) break;
+					else if (LLVMIsConstant(A)) {
+						int c = offset_map[b];
+						fprintf(outfile, "\tmovl $%lld, %d(%%ebp)\n", LLVMConstIntGetSExtValue(A), c);
+					} else if (reg_map.count(A)) {
+						int reg = reg_map[A];
+						if (reg != SPILL) {
+							int c = offset_map[b];
+							fprintf(outfile, "\tmovl %s, %d(%%ebp)\n", reg_name(reg), c);
+						} else {
+							int c1 = offset_map[A];
+							fprintf(outfile, "\tmovl %d(%%ebp), %%eax\n", c1);
+							int c2 = offset_map[b];
+							fprintf(outfile, "\tmovl %%eax, %d(%%ebp)\n", c2);
+						}
+					}
 					break;
-				case LLVMCall:
-					fprintf(outfile, "\tcall\n");
+				}
+				case LLVMCall: {
+					fprintf(outfile, "\tpushl %%ecx\n");
+					fprintf(outfile, "\tpushl %%edx\n");
+					int num_args = LLVMGetNumArgOperands(instr);
+					if (num_args > 0) {
+						LLVMValueRef P = LLVMGetOperand(instr, 0);
+						if (LLVMIsConstant(P)) {
+							fprintf(outfile, "\tpushl $%lld\n", LLVMConstIntGetSExtValue(P));
+						} else if (reg_map.count(P)) {
+							if (reg_map[P] != SPILL) {
+								fprintf(outfile, "\tpushl %s\n", reg_name(reg_map[P]));
+							} else {
+								int k = offset_map[P];
+								fprintf(outfile, "\tpushl %d(%%ebp)\n", k);
+							}
+						}
+					}
+					// emit call func
+					fprintf(outfile, "\tcall %s\n", LLVMGetValueName(LLVMGetCalledValue(instr)));
+					// if exists param
+					if (num_args > 0) {
+						fprintf(outfile, "\taddl $4, %%esp\n");
+					}
+					fprintf(outfile, "\tpopl %%edx\n");
+					fprintf(outfile, "\tpopl %%ecx\n");
+					// if instr is of form (%a = call type @func())
+					if (LLVMGetTypeKind(LLVMTypeOf(instr)) != LLVMVoidTypeKind) {
+						if (reg_map.count(instr) && reg_map[instr] != SPILL) {
+							fprintf(outfile, "\tmovl %%eax, %s\n", reg_name(reg_map[instr]));
+						} else {
+							fprintf(outfile, "\tmovl %%eax, %d(%%ebp)\n", offset_map[instr]);
+						}
+					}
 					break;
-				case LLVMBr:
-					fprintf(outfile, "\tbr\n");
+				}
+				case LLVMBr: {
+					// if unconditional
+					if (LLVMGetNumOperands(instr) == 1) {
+						LLVMBasicBlockRef b = LLVMValueAsBasicBlock(LLVMGetOperand(instr, 0));
+						string L = bb_labels[b];
+						fprintf(outfile, "\tjmp %s\n", L.c_str());
+					}
+					// if conditional
+					else {
+						LLVMBasicBlockRef falseBB = LLVMValueAsBasicBlock(LLVMGetOperand(instr, 1));
+						LLVMBasicBlockRef trueBB = LLVMValueAsBasicBlock(LLVMGetOperand(instr, 2));
+						LLVMValueRef cond = LLVMGetOperand(instr, 0);
+						LLVMIntPredicate pred = LLVMGetICmpPredicate(cond);
+						const char* jxx;
+						switch (pred) {
+							case LLVMIntEQ: jxx = "je"; break;
+							case LLVMIntNE: jxx = "jne"; break;
+							case LLVMIntSLT: jxx = "jl"; break;
+							case LLVMIntSGT: jxx = "jg"; break;
+							case LLVMIntSLE: jxx = "jle"; break;
+							case LLVMIntSGE: jxx = "jge"; break;
+							default: jxx = "jmp"; break;
+						}
+						fprintf(outfile, "\t%s %s\n", jxx, bb_labels[trueBB].c_str());
+						fprintf(outfile, "\tjmp %s\n", bb_labels[falseBB].c_str());
+					}
 					break;
+				}
 				case LLVMAdd:
 				case LLVMSub:
 				case LLVMMul:
@@ -371,6 +465,7 @@ int codegen(LLVMModuleRef mod) {
 		printf("%s\n", entry.second.c_str());
 	}*/
 
+	printf("assembly code generated! look for it in out/out.s :) :)\n");
 	fclose(outfile);
 	return 0;
 }
