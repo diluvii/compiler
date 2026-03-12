@@ -28,7 +28,7 @@ Note—due to syntax errors (double `;;`; `int max = 0` instead of `int max; max
     └── out_opt.ll      # optimized LLVM file after part 3
 ```
 
-## Running instructions
+## Overview
 ### Part 4: Codegen
 - **Input:** LLVM IR
 - **Output:** assembly code
@@ -51,6 +51,7 @@ For semantic analysis—
 - **Output:** integer representing if there is a semantic analysis error
 
 There are two checks we implemented for semantic analysis: 1) a variable is only declared once per scope, and 2) a variable must be declared before it is used.
+
 
 
 
