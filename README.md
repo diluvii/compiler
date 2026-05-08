@@ -5,8 +5,6 @@ A quick overview of the running instructions—
 - `./minic ${FILEPATH}` to generate the assembly code for the specified `.c` file (e.g. `./minic tests/fib.c` generates `/out/fib.s`)
 - `make run FILE=${FILENAME}` to run the assembly code for the specified program (e.g. `make run FILE=fib`)
 
-Note—due to syntax errors (double `;;`; `int max = 0` instead of `int max; max = 0`) I had to make changes to `tests/fact.c` and `tests/max_n.c` before I could run them—otherwise the compiler tells me there is a syntax error.
-
 ## Directory structure
 ```
 ├── main.c
