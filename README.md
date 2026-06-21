@@ -1,16 +1,24 @@
 # miniC compiler
-Compiler for a C-subset targetting x86-64 assembly. Generates LLVM IR and emits x86-64 assembly via LLVM API calls, with optimization passes (CSE, DCE, constant folding, constant propagation) and a linear-scan algorithm for register allocation.
+Compiler for a C-subset targetting x86-64 assembly. Generates LLVM IR and emits x86-64 assembly via LLVM API calls, with optimization passes (CSE, DCE, constant folding, constant propagation) and a linear scan algorithm for register allocation.
 
-- **Frontend:** Uses lex and yacc to run syntax and semantic analyses, and generates an AST.
-- **IR & optimizations:** Uses LLVM API calls in C to build an LLVM IR, then runs optimizations.
-- **Codegen:** Runs linear-scan, generates assembly.
+## Pipeline
+### Frontend: Syntax and semantic analysis
+Uses lex and yacc to parse miniC file into an AST. Conducts semantic checks to ensure variables are declared once per scope and declared before use.
 
-## How to run
-- `make` to generate the `./minic` executable
-- `./minic ${FILEPATH}` to generate the assembly code for the specified `.c` file (e.g. `./minic tests/fib.c` generates `/out/fib.s`)
-- `make run FILE=${FILENAME}` to run the assembly code for the specified program (e.g. `make run FILE=fib`)
+### IR generation
+AST lowered into LLVM IR via LLVM API calls.
 
-## Directory structure
+### Optimizations
+We run local optimizations (CSE, DCE, constant folding) and a global optimization (constant propagation) on the LLVM IR.
+
+(Will add descriptions of CSE, DCE, constant folding, constant propagation.)
+
+### Codegen
+We run the linear scan algorithm to allocate registers, then emit x86-64 assembly via LLVM API calls.
+
+(Will add descriptions of linear scan algorithm.)
+
+## Directory Structure
 ```
 ├── main.c
 ├── Makefile
@@ -31,33 +39,7 @@ Compiler for a C-subset targetting x86-64 assembly. Generates LLVM IR and emits 
     └── out_opt.ll      # optimized LLVM file after part 3
 ```
 
-## Overview
-### Part 4: Codegen
-- **Input:** LLVM IR
-- **Output:** assembly code
-
-### Part 2: IR builder & Part 3: Optimizations
-- **Input:** AST tree root node
-- **Output:** (optimized) LLVM IR
-
-Local optimizations implemented: common subexpression elimination, dead code elimination, constant folding
-
-Global optimizations implemented: constant propagation
-
-### Part 1: Syntax & semantic analysis
-For syntax analysis (implicit in `main.c` plus the `minic.l` and `minic.y` files)—
-- **Input:** miniC program file path
-- **Output:** AST tree root node
-
-For semantic analysis—
-- **Input:** AST tree root node
-- **Output:** integer representing if there is a semantic analysis error
-
-There are two checks we implemented for semantic analysis: 1) a variable is only declared once per scope, and 2) a variable must be declared before it is used.
-
-
-
-
-
-
-
+## Usage
+- `make` to generate the `./minic` executable
+- `./minic ${FILEPATH}` to generate the assembly code for the specified `.c` file (e.g. `./minic tests/fib.c` generates `/out/fib.s`)
+- `make run FILE=${FILENAME}` to run the assembly code for the specified program (e.g. `make run FILE=fib`)
