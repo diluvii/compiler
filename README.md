@@ -1,5 +1,5 @@
 # miniC compiler
-Compiler for a C-subset targetting x86-64 assembly. Generates LLVM IR and emits x86-64 assembly via LLVM API calls, with optimization passes (CSE, DCE, constant folding, constant propagation) and a linear scan algorithm for register allocation.
+Compiler for a C-subset targetting x86-64 assembly. Generates LLVM IR and emits x86-64 assembly via LLVM API calls, with optimization passes (CSE, DCE, constant folding, constant propagation) and a linear scan algorithm for register allocation with spill handling.
 
 ## Pipeline
 ### Frontend: Syntax and semantic analysis
