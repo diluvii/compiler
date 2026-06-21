@@ -1,6 +1,11 @@
 # miniC compiler
-A quick overview of the running instructions—
+Compiler for a C-subset targetting x86-64 assembly. Generates LLVM IR and emits x86-64 assembly via LLVM API calls, with optimization passes (CSE, DCE, constant folding, constant propagation) and a linear-scan algorithm for register allocation.
 
+- **Frontend:** Uses lex and yacc to run syntax and semantic analyses, and generates an AST.
+- **IR & optimizations:** Uses LLVM API calls in C to build an LLVM IR, then runs optimizations.
+- **Codegen:** Runs linear-scan, generates assembly.
+
+## How to run
 - `make` to generate the `./minic` executable
 - `./minic ${FILEPATH}` to generate the assembly code for the specified `.c` file (e.g. `./minic tests/fib.c` generates `/out/fib.s`)
 - `make run FILE=${FILENAME}` to run the assembly code for the specified program (e.g. `make run FILE=fib`)
